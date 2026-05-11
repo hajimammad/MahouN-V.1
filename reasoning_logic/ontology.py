@@ -10,12 +10,18 @@ This module provides a flexible, extensible ontology system that can be:
 - Versioned for backward compatibility
 - Customized per jurisdiction
 
+STRICT MODE:
+- When strict_mode=True (default in production): Only whitelisted predicates allowed
+- When strict_mode=False (test/research): All predicates allowed (validation bypassed)
+- Environment variable MAHOUN_ENV controls default behavior
+
 Author: MAHOUN Team
 """
 
-from typing import Dict, List, Tuple, Optional, Set
+from typing import Dict, List, Optional, Set
 import json
 import logging
+import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -47,17 +53,46 @@ class LegalOntology:
         "jurisdiction": "default"
     }
     
-    def __init__(self, ontology_file: Optional[str] = None):
+    def __init__(self, ontology_file: Optional[str] = None, strict_mode: Optional[bool] = None):
         """
         Initialize legal ontology
         
         Args:
             ontology_file: Path to JSON ontology file (optional)
+            strict_mode: Enable strict predicate validation (optional)
+                        - True: Only whitelisted predicates allowed (production default)
+                        - False: All predicates allowed (test/research mode)
+                        - None: Auto-detect from MAHOUN_ENV environment variable
+        
+        Environment Variables:
+            MAHOUN_ENV: Controls default strict_mode behavior
+                       - 'production' (default): strict_mode=True
+                       - 'test', 'development', 'research': strict_mode=False
         """
         self.predicates: Dict[str, Dict] = {}
         self.term_types: Set[str] = set()
         self.version: str = "unknown"
         self.jurisdiction: str = "default"
+        
+        # Determine strict_mode from environment if not explicitly set
+        if strict_mode is None:
+            env = os.getenv('MAHOUN_ENV', 'production').lower()
+            self.strict_mode = env == 'production'
+        else:
+            self.strict_mode = strict_mode
+        
+        # Log strict_mode status for audit trail
+        if not self.strict_mode:
+            logger.warning(
+                "⚠️  ONTOLOGY STRICT MODE DISABLED - All predicates will be accepted. "
+                "This should ONLY be used in test/research environments. "
+                f"MAHOUN_ENV={os.getenv('MAHOUN_ENV', 'production')}"
+            )
+        else:
+            logger.info(
+                "✓ Ontology strict mode ENABLED - Only whitelisted predicates allowed. "
+                f"MAHOUN_ENV={os.getenv('MAHOUN_ENV', 'production')}"
+            )
         
         if ontology_file:
             self.load_from_file(ontology_file)
@@ -153,12 +188,31 @@ class LegalOntology:
             
         Returns:
             True if valid, False otherwise
+        
+        Behavior:
+            - If strict_mode=False: Always returns True (bypass validation)
+            - If strict_mode=True: Validates against whitelist
         """
+        # SOFT MODE: Bypass validation if strict_mode is disabled
+        if not self.strict_mode:
+            return True
+        
+        # STRICT MODE: Enforce whitelist validation
         if name not in self.predicates:
+            logger.debug(
+                f"Predicate '{name}' not in ontology whitelist. "
+                f"Available: {list(self.predicates.keys())}"
+            )
             return False
         
         expected_arity = self.predicates[name]["arity"]
-        return arity == expected_arity
+        if arity != expected_arity:
+            logger.debug(
+                f"Predicate '{name}' arity mismatch: expected {expected_arity}, got {arity}"
+            )
+            return False
+        
+        return True
     
     def get_predicate_info(self, name: str) -> Optional[Dict]:
         """
@@ -216,11 +270,49 @@ class LegalOntology:
         logger.info(f"Merged ontology from {other.jurisdiction}")
     
     def __repr__(self) -> str:
+        strict_status = "STRICT" if self.strict_mode else "PERMISSIVE"
         return (
             f"LegalOntology(version={self.version}, jurisdiction={self.jurisdiction}, "
-            f"predicates={len(self.predicates)}, term_types={len(self.term_types)})"
+            f"predicates={len(self.predicates)}, term_types={len(self.term_types)}, "
+            f"mode={strict_status})"
         )
 
 
-# Global default ontology instance
-DEFAULT_ONTOLOGY = LegalOntology()
+# Global default ontology instance (lazy initialization)
+# Note: Uses environment-based strict_mode detection
+# Set MAHOUN_ENV=production for strict validation
+# Set MAHOUN_ENV=test for permissive validation (default for testing)
+_DEFAULT_ONTOLOGY: Optional[LegalOntology] = None
+
+
+def get_default_ontology() -> LegalOntology:
+    """
+    Get or create the default ontology instance (lazy initialization)
+    
+    This ensures MAHOUN_ENV is read at runtime, not at module import time.
+    This is CRITICAL for test environments where MAHOUN_ENV is set after import.
+    
+    Returns:
+        Default LegalOntology instance
+    """
+    global _DEFAULT_ONTOLOGY
+    if _DEFAULT_ONTOLOGY is None:
+        _DEFAULT_ONTOLOGY = LegalOntology()
+        logger.debug(f"Lazy-initialized DEFAULT_ONTOLOGY with strict_mode={_DEFAULT_ONTOLOGY.strict_mode}")
+    return _DEFAULT_ONTOLOGY
+
+
+def reset_default_ontology():
+    """
+    Reset the default ontology (for testing purposes)
+    
+    This allows tests to change MAHOUN_ENV and get a fresh ontology instance.
+    """
+    global _DEFAULT_ONTOLOGY
+    _DEFAULT_ONTOLOGY = None
+    logger.debug("Reset DEFAULT_ONTOLOGY for re-initialization")
+
+
+# Backward compatibility: DEFAULT_ONTOLOGY will be lazy-loaded
+# Use get_default_ontology() for guaranteed lazy initialization
+DEFAULT_ONTOLOGY = None  # Will be set on first access

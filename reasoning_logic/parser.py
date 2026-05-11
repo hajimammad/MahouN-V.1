@@ -25,7 +25,7 @@ import logging
 from dataclasses import dataclass
 
 from reasoning_logic.core import Term, TermType, Atom, Expression, Fact, Rule
-from reasoning_logic.ontology import LegalOntology, DEFAULT_ONTOLOGY
+from reasoning_logic.ontology import LegalOntology, get_default_ontology
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +63,13 @@ class LegalDSLValidator:
         Initialize validator
         
         Args:
-            ontology: Legal ontology to use (defaults to DEFAULT_ONTOLOGY)
+            ontology: Legal ontology to use (defaults to lazy-loaded DEFAULT_ONTOLOGY)
         """
-        self.ontology = ontology or DEFAULT_ONTOLOGY
+        # Lazy initialization: only create DEFAULT_ONTOLOGY when needed
+        if ontology is None:
+            ontology = get_default_ontology()
+        
+        self.ontology = ontology
         self.errors: List[ValidationError] = []
         
     def reset_errors(self):
@@ -73,20 +77,40 @@ class LegalDSLValidator:
         self.errors = []
         
     def validate_predicate(self, predicate: str, terms: List[Term]) -> bool:
-        """Validate predicate against Legal Ontology"""
-        predicate_info = self.ontology.get_predicate_info(predicate)
+        """
+        Validate predicate against Legal Ontology
         
-        if not predicate_info:
-            available = list(self.ontology.predicates.keys())
-            self.errors.append(
-                ValidationError(
-                    message=f"Invalid predicate: {predicate}. Must be one of: {available}",
-                    expression=f"{predicate}({', '.join(str(t) for t in terms)})",
-                    context={"type": "predicate", "value": predicate, "available": available}
+        This method respects the ontology's strict_mode setting:
+        - strict_mode=True: Only whitelisted predicates allowed
+        - strict_mode=False: All predicates allowed (bypass validation)
+        """
+        # Use ontology's validate_predicate which respects strict_mode
+        arity = len(terms)
+        
+        if not self.ontology.validate_predicate(predicate, arity):
+            # Only generate error if strict_mode is enabled
+            if self.ontology.strict_mode:
+                available = list(self.ontology.predicates.keys())
+                self.errors.append(
+                    ValidationError(
+                        message=f"Invalid predicate: {predicate}. Must be one of: {available}",
+                        expression=f"{predicate}({', '.join(str(t) for t in terms)})",
+                        context={"type": "predicate", "value": predicate, "available": available}
+                    )
                 )
-            )
             return False
-            
+        
+        # If we reach here, predicate is valid (or strict_mode is disabled)
+        # In soft mode, we don't have predicate_info, so skip arity/type checks
+        if not self.ontology.strict_mode:
+            return True
+        
+        # STRICT MODE: Perform detailed validation
+        predicate_info = self.ontology.get_predicate_info(predicate)
+        if not predicate_info:
+            # This should not happen if validate_predicate returned True
+            return True
+        
         expected_arity = predicate_info["arity"]
         if len(terms) != expected_arity:
             self.errors.append(
@@ -155,15 +179,16 @@ class FOLConverter:
     compound := expression operator expression
     """
     
-    def __init__(self, variable_prefix: str = "?"):
+    def __init__(self, variable_prefix: str = "?", ontology: Optional[LegalOntology] = None):
         """
         Initialize parser
 
         Args:
         variable_prefix: Prefix for variables (default: "?")
+        ontology: Legal ontology to use (defaults to DEFAULT_ONTOLOGY)
         """
         self.variable_prefix = variable_prefix
-        self.validator = LegalDSLValidator()
+        self.validator = LegalDSLValidator(ontology=ontology)
     
     def parse(self, expression: str) -> Expression:
         """

@@ -104,7 +104,6 @@ class Atom:
         return len(self.terms)
 
 
-@dataclass(frozen=True)
 class Fact:
     """
     Ground fact (atom with no variables) - IMMUTABLE
@@ -113,25 +112,93 @@ class Fact:
     
     Note: This class is frozen (immutable) to ensure hash stability
     when used in sets and dictionaries.
-    """
-    predicate: str
-    terms: Tuple[Term, ...] = field(default_factory=tuple)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    confidence: float = 1.0
     
-    def __post_init__(self):
-        """Validate that fact is ground (no variables allowed)"""
-        # Convert list to tuple if needed (for backward compatibility)
-        if isinstance(object.__getattribute__(self, 'terms'), list):
-            object.__setattr__(self, 'terms', tuple(object.__getattribute__(self, 'terms')))
+    Hash Strategy: metadata is excluded from hash/equality to allow
+    mutable metadata while maintaining hashability for Set/Dict usage.
+    This means two Facts with same predicate/terms/confidence but different
+    metadata are considered equal and have the same hash.
+    
+    Backward Compatibility: Accepts Expression objects via Fact(expression)
+    """
+    __slots__ = ('predicate', 'terms', 'metadata', 'confidence')
+    
+    def __init__(self, predicate, terms=None, metadata=None, confidence=1.0):
+        """
+        Initialize Fact with Expression support (backward compatibility)
         
-        # Enforce groundedness invariant
+        Args:
+            predicate: Either a string predicate name OR an Expression object
+            terms: Tuple of Term objects (optional if predicate is Expression)
+            metadata: Optional metadata dict
+            confidence: Confidence score (0.0 to 1.0)
+        """
+        # Check if first argument is an Expression object
+        if hasattr(predicate, 'predicate') and hasattr(predicate, 'terms'):
+            # It's an Expression object - extract predicate and terms
+            expression = predicate
+            predicate_str = expression.predicate
+            terms_tuple = tuple(expression.terms) if hasattr(expression.terms, '__iter__') else ()
+            metadata_dict = metadata or {}
+        else:
+            # Normal construction
+            predicate_str = predicate
+            terms_tuple = tuple(terms) if terms is not None else ()
+            metadata_dict = metadata or {}
+        
+        # Set attributes (using object.__setattr__ for immutability simulation)
+        object.__setattr__(self, 'predicate', predicate_str)
+        object.__setattr__(self, 'terms', terms_tuple)
+        object.__setattr__(self, 'metadata', metadata_dict)
+        object.__setattr__(self, 'confidence', confidence)
+        
+        # Validate groundedness
         if not self.is_ground():
             variables = self.get_variables()
             raise ValueError(
                 f"Fact must be ground (no variables allowed). "
                 f"Got: {self}. Variables: {variables}"
             )
+    
+    def __setattr__(self, name, value):
+        """Prevent attribute modification (immutability)"""
+        raise AttributeError(f"Cannot modify immutable Fact attribute '{name}'")
+    
+    def __hash__(self):
+        """
+        Custom hash that excludes metadata for stability.
+        
+        This allows Facts to be used in Sets and as Dict keys even when
+        metadata is mutable. Two Facts with same predicate, terms, and
+        confidence will have the same hash regardless of metadata.
+        """
+        return hash((self.predicate, self.terms, self.confidence))
+    
+    def __eq__(self, other):
+        """
+        Custom equality that excludes metadata.
+        
+        This ensures consistent behavior with __hash__. Two Facts are
+        equal if they have the same predicate, terms, and confidence,
+        regardless of metadata differences.
+        """
+        if not isinstance(other, Fact):
+            return False
+        return (
+            self.predicate == other.predicate and
+            self.terms == other.terms and
+            abs(self.confidence - other.confidence) < 1e-9  # Float comparison
+        )
+    
+    def __str__(self):
+        """String representation of Fact"""
+        if self.terms:
+            terms_str = ", ".join(str(t) for t in self.terms)
+            return f"{self.predicate}({terms_str})"
+        return self.predicate
+    
+    def __repr__(self):
+        """Detailed representation of Fact"""
+        return f"Fact(predicate='{self.predicate}', terms={self.terms}, confidence={self.confidence})"
     
     @staticmethod
     def from_expression(expression, metadata: Optional[Dict[str, Any]] = None, 
