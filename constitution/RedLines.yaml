@@ -1,0 +1,176 @@
+# MAHOUN RedLines Configuration
+# Classification: MISSION-CRITICAL / NON-BYPASSABLE
+# Version: 1.0.0
+# Last Updated: 2026-05-13
+
+# ============================================================================
+# GOVERNANCE THRESHOLDS
+# ============================================================================
+
+thresholds:
+  # Minimum agreement score between symbolic and neural reasoning
+  # Any response below this threshold MUST be rejected
+  min_agreement_score: 0.85
+  
+  # Minimum confidence score for reasoning verdicts
+  min_confidence_score: 0.70
+  
+  # Maximum allowed reasoning time (milliseconds)
+  max_reasoning_time_ms: 30000
+  
+  # Maximum recursion depth for backward chaining
+  max_recursion_depth: 100
+
+# ============================================================================
+# MANDATORY PROOF REQUIREMENTS
+# ============================================================================
+
+proof_requirements:
+  # Every reasoning response MUST contain a proof_tree
+  proof_tree_required: true
+  
+  # Proof tree must have minimum depth
+  min_proof_depth: 1
+  
+  # Proof tree must contain evidence linkage
+  evidence_linkage_required: true
+  
+  # Audit trail must be complete
+  audit_trail_required: true
+
+# ============================================================================
+# ZERO-HALLUCINATION GUARANTEES
+# ============================================================================
+
+hallucination_prevention:
+  # Reject responses without graph evidence
+  require_graph_evidence: true
+  
+  # Reject responses without source attribution
+  require_source_attribution: true
+  
+  # Reject responses with contradictions
+  reject_contradictions: true
+  
+  # Require deterministic execution
+  require_determinism: true
+
+# ============================================================================
+# DUAL-MODE INVARIANTS
+# ============================================================================
+
+dual_mode:
+  # Semantic equivalence must be maintained across modes
+  enforce_semantic_equivalence: true
+  
+  # Resource scaling only (no semantic changes)
+  allow_resource_scaling_only: true
+  
+  # Fail-fast on mode-specific semantic drift
+  fail_on_semantic_drift: true
+
+# ============================================================================
+# EXCEPTION HANDLING
+# ============================================================================
+
+exceptions:
+  # Exception class for RedLine violations
+  violation_exception: "SecurityBreachException"
+  
+  # Silent exception swallowing is FORBIDDEN
+  allow_silent_failures: false
+  
+  # All exceptions must be logged
+  require_exception_logging: true
+  
+  # Exceptions must include forensic context
+  require_forensic_context: true
+
+# ============================================================================
+# CI/CD ENFORCEMENT
+# ============================================================================
+
+ci_enforcement:
+  # CI must fail on RedLine violations
+  fail_ci_on_violation: true
+  
+  # Block merge on governance failures
+  block_merge_on_failure: true
+  
+  # Require proof validation in CI
+  require_proof_validation: true
+  
+  # Require determinism checks in CI
+  require_determinism_checks: true
+
+# ============================================================================
+# AUDIT REQUIREMENTS
+# ============================================================================
+
+audit:
+  # Correlation ID required for all operations
+  require_correlation_id: true
+  
+  # Immutable ledger for critical operations
+  require_ledger_logging: true
+  
+  # Forensic reconstruction capability
+  enable_forensic_reconstruction: true
+  
+  # Structured logging required
+  require_structured_logging: true
+
+# ============================================================================
+# RESOURCE CONSTRAINTS
+# ============================================================================
+
+resource_limits:
+  desktop_minimal:
+    max_memory_mb: 8192
+    max_graph_nodes: 100000
+    max_concurrent_requests: 10
+    
+  enterprise_full:
+    max_memory_mb: 524288
+    max_graph_nodes: 100000000
+    max_concurrent_requests: 1000
+
+# ============================================================================
+# FORBIDDEN OPERATIONS
+# ============================================================================
+
+forbidden:
+  # Mocking critical components
+  mock_reasoning_engine: true
+  mock_proof_generation: true
+  mock_graph_traversal: true
+  
+  # Bypassing validation
+  bypass_proof_validation: true
+  bypass_agreement_check: true
+  bypass_determinism_check: true
+  
+  # Weakening guarantees
+  reduce_proof_requirements: true
+  lower_agreement_threshold: true
+  skip_audit_logging: true
+
+# ============================================================================
+# ENFORCEMENT ACTIONS
+# ============================================================================
+
+enforcement:
+  # Action on RedLine violation
+  on_violation:
+    - log_security_event
+    - raise_exception
+    - block_response
+    - trigger_alert
+    - record_forensic_evidence
+  
+  # Action on CI failure
+  on_ci_failure:
+    - block_merge
+    - notify_team
+    - generate_report
+    - preserve_artifacts

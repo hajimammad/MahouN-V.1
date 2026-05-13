@@ -222,6 +222,8 @@ Drug interaction analysis and clinical trial protocol validation with regulatory
 4. ** Runtime Invariants**: Four enforcement modes for different use cases
 5. **MCP Layer**: Model Context Protocol for LLM integration
 6. **Evidence Ledger**: Immutable audit trail
+7. **Fortress Governance Layer**: Final non-bypassable forensic validation for all outputs
+8. **RedLine Enforcement**: Automated check against `RedLines.yaml` governance thresholds
 
 ---
 
@@ -512,6 +514,25 @@ Mahoun implements enterprise-grade security:
 - ✅ Dependency scanning
 - ✅ Audit logging
 - ✅ Secrets management
+
+### 🛡️ Fortress Governance & RedLines (v1.1.0)
+
+Mahoun now implements a **Fortress Governance Layer** that acts as the final gatekeeper for all reasoning outputs.
+
+**Key Features:**
+- 🏰 **Non-Bypassable Validation**: Every response must pass forensic checks in `FortressValidator`.
+- 🔴 **RedLine Enforcement**: Strict adherence to thresholds defined in `constitution/RedLines.yaml`.
+- 📊 **Agreement Thresholds**: Mandatory 85%+ agreement between symbolic and neural reasoning.
+- 🔍 **Proof Integrity**: Automated verification of proof tree depth and evidence linkage.
+- 🛡️ **Fail-Safe Shutdown**: Immediate blocking of responses that violate zero-hallucination guarantees.
+
+**RedLine Thresholds:**
+| Metric | Threshold | Action on Violation |
+|--------|-----------|--------------------|
+| **Min Agreement Score** | 0.85 | Block & Log |
+| **Min Confidence** | 0.70 | Block & Log |
+| **Max Reasoning Time** | 30s | Timeout & Error |
+| **Proof Tree** | Required | Block & Log |
 
 Report security issues to: security@mahoun.ai
 

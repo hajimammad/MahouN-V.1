@@ -1870,8 +1870,9 @@ class UnifiedReasoningService:
                 agreement_score = overlap / total if total > 0 else 1.0
                 consistency_result["agreement_score"] = agreement_score
                 
-                if agreement_score < 0.3:  # Less than 30% agreement
-                    consistency_result["issues"].append(f"Low fact agreement: {agreement_score:.2%}")
+                # GOVERNANCE ENFORCEMENT: RedLines.yaml threshold = 0.85
+                if agreement_score < 0.85:  # CRITICAL: Raised from 0.30 to 0.85
+                    consistency_result["issues"].append(f"Low fact agreement: {agreement_score:.2%} (threshold: 85%)")
             
             # Overall consistency
             if len(consistency_result["issues"]) > 2:
