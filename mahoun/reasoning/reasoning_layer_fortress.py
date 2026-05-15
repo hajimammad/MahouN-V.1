@@ -27,6 +27,7 @@ INVARIANTS PROTECTED:
 
 import os
 import sys
+import asyncio
 import hashlib
 import hmac
 import time
@@ -210,17 +211,29 @@ class ReasoningLayerFortress:
             signature = self._generate_component_signature(component, component_name)
             self.protected_components[component_name] = signature
             
-            # Create protected wrapper
-            @wraps(component)
-            def fortress_wrapper(*args, **kwargs):
-                return self._execute_protected_component(
-                    component, component_name, args, kwargs, critical
-                )
+            # Check if component is async
+            is_async = asyncio.iscoroutinefunction(component)
+            
+            if is_async:
+                # Create async protected wrapper
+                @wraps(component)
+                async def fortress_wrapper(*args, **kwargs):
+                    return await self._execute_protected_component_async(
+                        component, component_name, args, kwargs, critical
+                    )
+            else:
+                # Create sync protected wrapper
+                @wraps(component)
+                def fortress_wrapper(*args, **kwargs):
+                    return self._execute_protected_component(
+                        component, component_name, args, kwargs, critical
+                    )
             
             # Mark wrapper as protected
             fortress_wrapper._fortress_protected = True
             fortress_wrapper._fortress_signature = signature
             fortress_wrapper._fortress_critical = critical
+            fortress_wrapper._fortress_is_async = is_async
             
             self._log_audit_event(
                 "component_protected",
@@ -228,17 +241,19 @@ class ReasoningLayerFortress:
                     "component_name": component_name,
                     "critical": critical,
                     "signature_hash": signature.signature_hash[:16],
-                    "protection_level": self.security_level.value
+                    "protection_level": self.security_level.value,
+                    "is_async": is_async
                 }
             )
             
             logger.info(
-                f"🛡️ COMPONENT PROTECTED: {component_name}",
+                f"🛡️ COMPONENT PROTECTED: {component_name} {'(async)' if is_async else ''}",
                 extra={
                     "component_name": component_name,
                     "critical": critical,
                     "signature_hash": signature.signature_hash[:16],
-                    "security_level": self.security_level.value
+                    "security_level": self.security_level.value,
+                    "is_async": is_async
                 }
             )
             
@@ -340,6 +355,71 @@ class ReasoningLayerFortress:
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "traceback": traceback.format_exc()
+                }
+            )
+            
+            # Critical component failures trigger fortress lockdown
+            if critical:
+                self._trigger_fortress_lockdown(
+                    f"Critical component {component_name} failed: {e}"
+                )
+            
+            raise
+    
+    async def _execute_protected_component_async(
+        self,
+        component: Callable,
+        component_name: str,
+        args: Tuple,
+        kwargs: Dict[str, Any],
+        critical: bool
+    ) -> Any:
+        """Execute protected async component with full security checks"""
+        
+        execution_start = time.time()
+        
+        try:
+            # PHASE 1: PRE-EXECUTION SECURITY CHECKS
+            self._verify_component_integrity(component_name)
+            self._check_access_authorization(component_name)
+            
+            # PHASE 2: EXECUTION MONITORING
+            with self._monitor_execution(component_name, critical):
+                result = await component(*args, **kwargs)
+            
+            # PHASE 3: POST-EXECUTION VALIDATION
+            self._validate_execution_result(component_name, result, critical)
+            
+            execution_time = (time.time() - execution_start) * 1000
+            
+            self._log_audit_event(
+                "component_executed",
+                {
+                    "component_name": component_name,
+                    "critical": critical,
+                    "execution_time_ms": execution_time,
+                    "success": True,
+                    "args_count": len(args),
+                    "kwargs_count": len(kwargs),
+                    "is_async": True
+                }
+            )
+            
+            return result
+            
+        except Exception as e:
+            execution_time = (time.time() - execution_start) * 1000
+            
+            self._log_audit_event(
+                "component_execution_failed",
+                {
+                    "component_name": component_name,
+                    "critical": critical,
+                    "execution_time_ms": execution_time,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "traceback": traceback.format_exc(),
+                    "is_async": True
                 }
             )
             
@@ -670,16 +750,18 @@ def get_reasoning_fortress() -> ReasoningLayerFortress:
     global _reasoning_fortress
     
     if _reasoning_fortress is None:
-        # Determine security level from environment
-        env = os.getenv("MAHOUN_ENV", "development").lower()
+        # Determine security level from canonical environment
+        from mahoun.core.environment import get_current_environment
         
-        if env == "production":
+        env_context = get_current_environment()
+        
+        if env_context.is_production():
             security_level = SecurityLevel.FORTRESS
-        elif env == "staging":
+        elif env_context.is_staging():
             security_level = SecurityLevel.HARDENED
-        elif env == "test":
+        elif env_context.is_test():
             security_level = SecurityLevel.MONITORING
-        else:
+        else:  # development
             security_level = SecurityLevel.PROTECTED
         
         _reasoning_fortress = ReasoningLayerFortress(security_level)
@@ -687,7 +769,10 @@ def get_reasoning_fortress() -> ReasoningLayerFortress:
         
         logger.info(
             f"🏰 GLOBAL REASONING FORTRESS ACTIVATED: {security_level.value}",
-            extra={"security_level": security_level.value}
+            extra={
+                "security_level": security_level.value,
+                "environment": env_context.environment.value,
+            }
         )
     
     return _reasoning_fortress

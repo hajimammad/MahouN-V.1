@@ -2,51 +2,33 @@
 MAHOUN Core Module
 ==================
 
-Core components for the MAHOUN Enterprise system.
+Core infrastructure components for MAHOUN platform.
+
+Components:
+- FortressValidator: Governance enforcement layer
+- Settings: Configuration management
+- Health checks: System health monitoring
+- Logging: Structured logging configuration
 """
-from typing import Any, Optional
 
-from .runtime_config import (
-    get_runtime_settings,
-    is_desktop_minimal,
-    should_skip_graph,
-    should_skip_lora_training,
-    is_enterprise_graph_mode,
-    get_graph_config,
-    MahounRuntimeSettings,
+from mahoun.core.fortress_validator import (
+    ExecutionMode,
+    FortressValidator,
+    ReasoningResponse,
+    SecurityBreachException,
+    ValidationResult,
+    ViolationSeverity,
+    ViolationType,
+    validate_reasoning_response,
 )
 
-from .models import (
-    LegalDocType,
-    LegalDocument,
-    LegalEntity,
-    ReasoningStep,
-    CausalRelation,
-    ReasoningResult,
-    UncertaintyEstimate,
-)
-
-# RAG Pipeline alias for backward compatibility
-# Removed to fix architecture boundary violation
-RAGPipeline: Optional[Any] = None
 __all__ = [
-    # Runtime Config
-    "get_runtime_settings",
-    "is_desktop_minimal",
-    "should_skip_graph",
-    "should_skip_lora_training",
-    "is_enterprise_graph_mode",
-    "get_graph_config",
-    "MahounRuntimeSettings",
-    # Models
-    "LegalDocType",
-    "LegalDocument",
-    "LegalEntity",
-    "ReasoningStep",
-    "CausalRelation",
-    "ReasoningResult",
-    "UncertaintyEstimate",
-    # RAG Pipeline
-    "RAGPipeline",
+    "ExecutionMode",
+    "FortressValidator",
+    "ReasoningResponse",
+    "SecurityBreachException",
+    "ValidationResult",
+    "ViolationSeverity",
+    "ViolationType",
+    "validate_reasoning_response",
 ]
-

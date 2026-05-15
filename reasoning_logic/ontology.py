@@ -62,36 +62,45 @@ class LegalOntology:
             strict_mode: Enable strict predicate validation (optional)
                         - True: Only whitelisted predicates allowed (production default)
                         - False: All predicates allowed (test/research mode)
-                        - None: Auto-detect from MAHOUN_ENV environment variable
+                        - None: Auto-detect from canonical environment
         
-        Environment Variables:
-            MAHOUN_ENV: Controls default strict_mode behavior
-                       - 'production' (default): strict_mode=True
-                       - 'test', 'development', 'research': strict_mode=False
+        Environment:
+            Uses canonical environment authority (mahoun.core.environment)
+            - production: strict_mode=True
+            - test/development/staging: strict_mode=False
         """
         self.predicates: Dict[str, Dict] = {}
         self.term_types: Set[str] = set()
         self.version: str = "unknown"
         self.jurisdiction: str = "default"
         
-        # Determine strict_mode from environment if not explicitly set
+        # Determine strict_mode from canonical environment if not explicitly set
         if strict_mode is None:
-            env = os.getenv('MAHOUN_ENV', 'production').lower()
-            self.strict_mode = env == 'production'
+            try:
+                from mahoun.core.environment import get_current_environment
+                env_context = get_current_environment()
+                self.strict_mode = env_context.is_production()
+                env_name = env_context.environment.value
+            except Exception as e:
+                # Fallback for edge cases (should not happen in normal operation)
+                logger.warning(f"Failed to get canonical environment: {e}. Defaulting to strict_mode=True")
+                self.strict_mode = True
+                env_name = "unknown"
         else:
             self.strict_mode = strict_mode
+            env_name = "explicit"
         
         # Log strict_mode status for audit trail
         if not self.strict_mode:
             logger.warning(
                 "⚠️  ONTOLOGY STRICT MODE DISABLED - All predicates will be accepted. "
                 "This should ONLY be used in test/research environments. "
-                f"MAHOUN_ENV={os.getenv('MAHOUN_ENV', 'production')}"
+                f"Environment={env_name}"
             )
         else:
             logger.info(
                 "✓ Ontology strict mode ENABLED - Only whitelisted predicates allowed. "
-                f"MAHOUN_ENV={os.getenv('MAHOUN_ENV', 'production')}"
+                f"Environment={env_name}"
             )
         
         if ontology_file:

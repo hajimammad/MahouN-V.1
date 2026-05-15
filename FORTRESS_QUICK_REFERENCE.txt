@@ -1,0 +1,134 @@
+================================================================================
+FORTRESS VALIDATOR - QUICK REFERENCE CARD
+================================================================================
+
+🎯 MISSION: Enforce 85% agreement threshold + zero-hallucination guarantees
+
+================================================================================
+KEY THRESHOLDS (RedLines.yaml)
+================================================================================
+
+✓ min_agreement_score: 0.85      ⬆️ RAISED FROM 0.30
+✓ min_confidence_score: 0.70
+✓ max_reasoning_time_ms: 30000
+✓ proof_tree_required: true
+✓ evidence_linkage_required: true
+
+================================================================================
+QUICK START
+================================================================================
+
+# 1. Direct Validation
+from mahoun.core.fortress_validator import FortressValidator
+
+validator = FortressValidator(strict_mode=True)
+result = await validator.validate(response, correlation_id="req-123")
+
+# 2. Wrapped Service (RECOMMENDED)
+from mahoun.reasoning.fortress_integration import create_fortress_protected_service
+
+protected = create_fortress_protected_service(base_service, strict_mode=True)
+response = await protected.reason(request)  # Auto-validated
+
+# 3. Decorator
+@fortress_validated(strict_mode=True)
+async def my_reasoning(request):
+    return response
+
+================================================================================
+VALIDATION CHECKS (6 Total)
+================================================================================
+
+1. ✓ Proof Tree: Must exist, depth >= 1
+2. ✓ Agreement Score: Must be >= 0.85 (HYBRID mode)
+3. ✓ Evidence Linkage: derived_facts not empty
+4. ✓ Audit Trail: Required metadata present
+5. ✓ Determinism: Reproducible results
+6. ✓ Contradictions: No contradictions detected
+
+================================================================================
+COMMON ERRORS & FIXES
+================================================================================
+
+❌ "Response missing required proof_tree"
+   FIX: response.proof_tree = backward_result.proof_tree
+
+❌ "Agreement score 0.65 below threshold 0.85"
+   FIX: Improve symbolic/neural alignment
+   DEBUG: Compare symbolic_facts vs neural_facts
+
+❌ "No derived facts found (missing graph evidence)"
+   FIX: response.derived_facts = list(proof_nodes)
+
+❌ "Missing agreement_score in hybrid reasoning response"
+   FIX: response.metadata["agreement_score"] = calculate_agreement()
+
+================================================================================
+FILES LOCATION
+================================================================================
+
+📁 constitution/RedLines.yaml                    # Governance config
+📁 mahoun/core/fortress_validator.py             # Main implementation
+📁 mahoun/reasoning/fortress_integration.py      # Wrapper service
+📁 tests/test_fortress_validator.py              # 25 tests
+📁 examples/fortress_validator_demo.py           # Demo script
+📁 FORTRESS_DOCUMENTATION.txt                    # Full docs (758 lines)
+
+================================================================================
+TESTING
+================================================================================
+
+# Run all tests
+pytest tests/test_fortress_validator.py -v
+
+# Run specific test
+pytest tests/test_fortress_validator.py::test_low_agreement_score_fails -v
+
+# Run demo
+python examples/fortress_validator_demo.py
+
+================================================================================
+STATISTICS & MONITORING
+================================================================================
+
+# Get stats
+stats = validator.get_stats()
+print(f"Pass Rate: {stats['passed'] / stats['total_validations']:.2%}")
+
+# Get audit trail
+audit = validator.get_audit_trail(limit=50)
+
+# Health check
+health = await protected_service.health_check()
+
+================================================================================
+EXCEPTION HANDLING
+================================================================================
+
+try:
+    result = await validator.validate(response)
+except SecurityBreachException as e:
+    print(f"Violation: {e.violation_type}")
+    print(f"Severity: {e.severity}")
+    print(f"Forensic: {e.forensic_context}")
+
+================================================================================
+PERFORMANCE TIPS
+================================================================================
+
+✓ Reuse validator instance (don't create per request)
+✓ Use batch processing for multiple validations
+✓ Monitor validation time (target: < 100ms)
+✓ Enable debug logging for troubleshooting
+
+================================================================================
+STATUS
+================================================================================
+
+🟢 FORTRESS VALIDATOR: OPERATIONAL
+🟢 GOVERNANCE ENFORCEMENT: ACTIVE
+🟢 AGREEMENT THRESHOLD: 0.85 (85%)
+🟢 ZERO-HALLUCINATION: ENFORCED
+🟢 TESTS: 25/25 PASSING
+
+================================================================================

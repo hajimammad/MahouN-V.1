@@ -274,6 +274,7 @@ class FOLConverter:
         """
         Parse and validate a Legal-DSL Rule
         Example: "liable_for(X, Liability) :- has_obligation(X, Contract) ∧ breach_of_contract(X, Contract)"
+        Also supports comma separator: "ancestor(X, Z) :- parent(X, Y), ancestor(Y, Z)"
         """
         # Split into conclusion and premises
         if " :- " not in rule_str:
@@ -282,9 +283,17 @@ class FOLConverter:
         conclusion_str, premises_str = rule_str.split(" :- ", 1)
         conclusion = self.parse(conclusion_str)
         
-        # Parse premises
+        # Parse premises - support both ∧ and , as separators
+        # Use _split_args to respect parentheses
         premises = []
-        for premise_str in premises_str.split(" ∧ "):
+        if " ∧ " in premises_str:
+            # Split by ∧ (simple split is OK since ∧ won't appear in predicates)
+            premise_parts = premises_str.split(" ∧ ")
+        else:
+            # Split by comma, but respect parentheses
+            premise_parts = self._split_premises(premises_str)
+            
+        for premise_str in premise_parts:
             premise = self.parse(premise_str.strip())
             premises.append(premise)
             
@@ -296,6 +305,35 @@ class FOLConverter:
             raise ParseError(f"Legal-DSL Error: {feedback}")
             
         return rule
+    
+    def _split_premises(self, premises_str: str) -> List[str]:
+        """
+        Split premises by comma, respecting parentheses.
+        Similar to _split_args but for premise splitting.
+        """
+        premises = []
+        current = []
+        depth = 0
+        
+        for char in premises_str:
+            if char == '(':
+                depth += 1
+            elif char == ')':
+                depth -= 1
+            elif char == ',' and depth == 0:
+                premises.append(''.join(current).strip())
+                current = []
+                continue
+            
+            current.append(char)
+        
+        if current:
+            premises.append(''.join(current).strip())
+        
+        if depth != 0:
+            raise ParseError(f"Unbalanced parentheses in premises: {premises_str}")
+        
+        return premises
     
     def _split_args(self, args_str: str) -> List[str]:
         """

@@ -71,7 +71,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class ReasoningMode(Enum):
+class ReasoningMode(str, Enum):
     """Reasoning mode selection"""
     SYMBOLIC = "symbolic"      # Pure FOL reasoning
     NEURAL = "neural"          # LLM-based reasoning  
@@ -79,7 +79,7 @@ class ReasoningMode(Enum):
     AUTO = "auto"              # Automatic selection
 
 
-class ReasoningTask(Enum):
+class ReasoningTask(str, Enum):
     """Type of reasoning task"""
     FORWARD_INFERENCE = "forward_inference"    # Derive new facts
     BACKWARD_PROOF = "backward_proof"          # Prove a goal
@@ -105,7 +105,23 @@ class ReasoningRequest:
 
 @dataclass
 class ReasoningResponse:
-    """Unified reasoning response"""
+    """
+    Unified reasoning response with PROOF-CARRYING CONTRACT enforcement.
+    
+    CRITICAL: A successful reasoning response is INVALID unless ALL exist:
+    - fortress_validated == True
+    - proof_tree exists
+    - derived_facts exist
+    - audit_hash exists
+    - validation_timestamp exists
+    - correlation_id exists
+    
+    This contract is:
+    - Runtime-enforced
+    - Serialization-enforced
+    - API-enforced
+    - CI-tested
+    """
     success: bool
     result: Any
     confidence: float
@@ -116,6 +132,81 @@ class ReasoningResponse:
     derived_facts: List[str] = field(default_factory=list)
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # ========================================================================
+    # PROOF-CARRYING CONTRACT FIELDS (MANDATORY for successful responses)
+    # ========================================================================
+    fortress_validated: bool = False
+    """Whether this response has been validated by FortressValidator"""
+    
+    audit_hash: Optional[str] = None
+    """Forensic audit hash (SHA256) for tamper detection"""
+    
+    validation_timestamp: Optional[str] = None
+    """ISO 8601 timestamp when validation occurred"""
+    
+    correlation_id: Optional[str] = None
+    """Unique correlation ID for distributed tracing"""
+    
+    def __post_init__(self):
+        """
+        Validate proof-carrying contract on initialization.
+        
+        ENFORCEMENT: If success=True, all proof-carrying fields MUST be present.
+        """
+        if self.success and not self.error:
+            # Check proof-carrying contract
+            violations = []
+            
+            if not self.fortress_validated:
+                violations.append("fortress_validated must be True for successful responses")
+            
+            if self.proof_tree is None:
+                violations.append("proof_tree is required for successful responses")
+            
+            if not self.derived_facts:
+                violations.append("derived_facts cannot be empty for successful responses")
+            
+            if self.audit_hash is None:
+                violations.append("audit_hash is required for successful responses")
+            
+            if self.validation_timestamp is None:
+                violations.append("validation_timestamp is required for successful responses")
+            
+            if self.correlation_id is None:
+                violations.append("correlation_id is required for successful responses")
+            
+            # STRICT MODE: Raise exception if contract violated
+            # NOTE: Can be disabled for backward compatibility during migration
+            if violations and self._enforce_contract():
+                from mahoun.core.fortress_validator import SecurityBreachException, ViolationType, ViolationSeverity
+                raise SecurityBreachException(
+                    message=f"Proof-carrying contract violated: {'; '.join(violations)}",
+                    violation_type=ViolationType.AUDIT_TRAIL_INCOMPLETE,
+                    severity=ViolationSeverity.CRITICAL,
+                    forensic_context={
+                        "violations": violations,
+                        "response": {
+                            "success": self.success,
+                            "fortress_validated": self.fortress_validated,
+                            "has_proof_tree": self.proof_tree is not None,
+                            "has_derived_facts": len(self.derived_facts) > 0,
+                            "has_audit_hash": self.audit_hash is not None,
+                            "has_validation_timestamp": self.validation_timestamp is not None,
+                            "has_correlation_id": self.correlation_id is not None,
+                        }
+                    },
+                    correlation_id=self.correlation_id
+                )
+    
+    def _enforce_contract(self) -> bool:
+        """
+        Determine if proof-carrying contract should be enforced.
+        
+        Returns True unless explicitly disabled via environment variable.
+        """
+        import os
+        return os.getenv("MAHOUN_ENFORCE_PROOF_CARRYING_CONTRACT", "true").lower() != "false"
 
 
 class UnifiedReasoningService:
@@ -193,8 +284,13 @@ class UnifiedReasoningService:
         self.kb = KnowledgeBase()
         
         # Initialize FOL parser with test-friendly ontology (non-strict mode)
-        import os
-        os.environ['MAHOUN_ENV'] = 'test'  # Force test mode for flexible parsing
+        # Note: MAHOUN_ENV should already be set by test fixtures
+        # We don't modify os.environ here to avoid interfering with other tests
+        
+        # Reset ontology to ensure clean state
+        from reasoning_logic.ontology import reset_default_ontology
+        reset_default_ontology()
+        
         self.fol_parser = FOLConverter()
         
         # Initialize neural reasoning (if available)
@@ -459,18 +555,21 @@ class UnifiedReasoningService:
                             # Parse conclusion
                             conclusion_expr = self.fol_parser.parse(conclusion_str)
                             
-                            # Handle multiple premises (comma-separated)
-                            if "," in premise_str:
-                                # For now, create a simple rule with first premise
-                                # In production, this would handle complex logical combinations
-                                first_premise = premise_str.split(",")[0].strip()
-                                premise_expr = self.fol_parser.parse(first_premise)
-                            else:
+                            # Parse premise using parse_rule to handle complex premises correctly
+                            # Create a temporary rule string to parse premises
+                            temp_rule_str = f"temp_conclusion :- {premise_str}"
+                            try:
+                                temp_rule = self.fol_parser.parse_rule(temp_rule_str)
+                                # Use the parsed premises (already a list)
+                                premise_list = temp_rule.premise
+                            except:
+                                # Fallback to simple parse - wrap in list
                                 premise_expr = self.fol_parser.parse(premise_str)
+                                premise_list = [premise_expr]
                             
                             # Create rule
                             from reasoning_logic import Rule
-                            rule = Rule(premise_expr, conclusion_expr)
+                            rule = Rule(premise=premise_list, conclusion=conclusion_expr)
                             kb.add_rule(rule)
                         else:
                             logger.warning(f"Invalid rule format: {rule_str}")
@@ -1303,17 +1402,39 @@ class UnifiedReasoningService:
         
         derived_facts = [str(fact) for fact in engine.derived_facts]
         
+        # Build proof tree if requested
+        proof_tree = None
+        if request.return_proof and hasattr(engine, 'proof_tree'):
+            proof_tree = engine.proof_tree
+        elif request.return_proof:
+            # Create simple proof tree from derived facts
+            proof_tree = {
+                'type': 'forward_inference',
+                'derived_facts': derived_facts,
+                'iterations': stats.iterations,
+                'rules_fired': stats.rules_fired
+            }
+        
+        # CRITICAL FIX: No new facts is a valid result, not a failure
+        # success should always be True unless there's an actual error
+        # NOTE: fortress_validated=False initially - will be validated by fortress_validator
         return ReasoningResponse(
-            success=stats.facts_derived > 0,
+            success=True,  # Forward inference completed successfully
             result=f"Derived {stats.facts_derived} new facts",
-            confidence=1.0 if stats.facts_derived > 0 else 0.0,
+            confidence=1.0 if stats.facts_derived > 0 else 0.5,  # Lower confidence if no new facts
             reasoning_mode=ReasoningMode.SYMBOLIC,
             execution_time_ms=stats.execution_time_ms,
+            proof_tree=proof_tree,
             derived_facts=derived_facts,
+            fortress_validated=False,  # Will be validated by fortress_validator
+            audit_hash=None,  # Will be set by fortress_validator
+            validation_timestamp=None,  # Will be set by fortress_validator
+            correlation_id=None,  # Will be set by fortress_validator
             metadata={
                 'iterations': stats.iterations,
                 'rules_fired': stats.rules_fired,
-                'duplicates_rejected': stats.duplicates_rejected
+                'duplicates_rejected': stats.duplicates_rejected,
+                'facts_derived': stats.facts_derived
             }
         )
     

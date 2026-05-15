@@ -35,7 +35,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, TypeVar, Union
 
 import yaml
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
+
+from mahoun.reasoning.unified_reasoning_service import ReasoningResponse
 
 try:
     from mahoun.core.logging_config import get_logger
@@ -184,7 +186,7 @@ class ValidationResult(BaseModel):
 
 class ReasoningResponse(BaseModel):
     """Expected structure of reasoning service response"""
-    
+
     success: bool
     result: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -194,7 +196,11 @@ class ReasoningResponse(BaseModel):
     explanation: Optional[str] = None
     derived_facts: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    
+    fortress_validated: bool = False
+    audit_hash: Optional[str] = None
+    validation_timestamp: Optional[str] = None
+    correlation_id: Optional[str] = None
+
     class Config:
         arbitrary_types_allowed = True
 
@@ -402,6 +408,21 @@ class FortressValidator:
         forensic_ctx.violations_detected = violations
         self.audit_trail.append(forensic_ctx)
         
+        # ========================================================================
+        # PROOF-CARRYING CONTRACT INJECTION
+        # ========================================================================
+        # If validation passed, inject proof-carrying metadata into response
+        if passed and isinstance(response, ReasoningResponse):
+            response.fortress_validated = True
+            response.audit_hash = forensic_ctx.response_hash
+            response.validation_timestamp = forensic_ctx.timestamp
+            response.correlation_id = correlation_id
+            
+            log.debug(
+                f"[{correlation_id}] Proof-carrying metadata injected: "
+                f"hash={response.audit_hash}, timestamp={response.validation_timestamp}"
+            )
+        
         # Create validation result
         result = ValidationResult(
             passed=passed,
@@ -414,7 +435,8 @@ class FortressValidator:
             metadata={
                 "execution_mode": self.execution_mode.value,
                 "strict_mode": self.strict_mode,
-                "checks_performed": len(forensic_ctx.validation_checks)
+                "checks_performed": len(forensic_ctx.validation_checks),
+                "proof_carrying_injected": passed  # Track if metadata was injected
             }
         )
         
