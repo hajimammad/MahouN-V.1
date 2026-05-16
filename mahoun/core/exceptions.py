@@ -195,6 +195,16 @@ class InvariantViolationError(ReasoningError):
     error_code = "INVARIANT_VIOLATION"
 
 
+class GovernanceError(MahounError):
+    """Governance policy violation.
+    
+    Links to the unified governance kernel violation model.
+    Use GovernanceViolationError from mahoun.core.governance.violations
+    for typed governance failures.
+    """
+    error_code = "GOVERNANCE_VIOLATION"
+
+
 # =============================================================================
 # External Service Errors
 # =============================================================================

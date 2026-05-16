@@ -25,7 +25,7 @@ jobs:
         run: pip-audit
         
       - name: Static Security Analysis (Bandit)
-        run: bandit -r mahoun api -c .bandit.yml || echo "Configure Bandit for strict scanning"
+        run: bandit -r mahoun api -ll -ii --exclude '*/tests/*,*/archive/*,*/__pycache__/*'
         
       - name: Generate Forensic Evidence Artifact
         run: |

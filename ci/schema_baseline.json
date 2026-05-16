@@ -1,0 +1,16 @@
+{
+  "constitution/RedLines.yaml": "42aabd872a1192c702b197a05cfa1d174148568fd586488587e2b737e84a1c1e",
+  "core_manifest.yaml": "b885c75417e384b928119f067730f182cc80efc232abdd87a046cdffd5572568",
+  "mahoun/core/governance/ontology_enforcer.py": "63b6b0ea057464e2f8a4a26ee82ae635c7312d748bc5e54d862e77bdcd8d955e",
+  "mahoun/core/governance/policies.py": "8fc2e1132033d1e96bc90937d2af861f7e7ecb3fd62f043a67e25bae4dbf23bc",
+  "mahoun/core/governance/violations.py": "f7f9adda23e6cfee33d92d8ee7293384b813c8040ce9a4c3b0bc62b8b5891984",
+  "mahoun/core/protocols.py": "ab18361e6ccff740e7027fdd9917ff30a327f605c497f108f0beffcebebc71d7",
+  "mahoun/schemas/contracts/core_contracts.py": "86623bcbe71bc97f8157b6c20eb8af0c274ea9872bcaa083a17272ce81bf80b2",
+  "mahoun/schemas/contracts/graph_contracts.py": "15e84a0b8f3e176f9359c99eefaec458f5b1ee84bf90b75f85d5812f9fc0c1a1",
+  "mahoun/schemas/contracts/invariants_contracts.py": "4107eb9482f9dcc621ad708dbd6a1907c0166eecb820e0c1c137c6c9d3820dbd",
+  "mahoun/schemas/contracts/ledger_contracts.py": "23274de65d393ab38a2eddf6254c84cbb588d2ef8ff123f6f963e4da92b26c2e",
+  "mahoun/schemas/contracts/reasoning_contracts.py": "5a64f1b466b32c3c8dffac7845d632cc060dfbfff140180ecea342b6f9bceb2b",
+  "mahoun/schemas/contracts/schemas_contracts.py": "a5baf0f45f60544ac9dd1f365debdb38a26ac795677de87fdadef41d61993027",
+  "mahoun/schemas/legal_struct_schema.py": "7a3c2db0f539e9ec9903b2a32e1625ddedacb017eff8a484f9f0741f689dbe57",
+  "mahoun/schemas/text_schema.py": "266e4123c82dbba6034907711087b19c3b9eba01aa0e1d89a70403f47b092528"
+}
