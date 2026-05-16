@@ -120,7 +120,8 @@ def _extract_entities(text: str) -> List[Entity]:
                             ))
         except Exception as e:
             # Fallback to basic regex extraction if NER fails
-            pass
+            import logging
+            logging.getLogger(__name__).warning(f"LegalNER extraction failed, falling back to regex: {e}")
 
     # Always do basic regex extraction as fallback/supplement
     for match in _ARTICLE_RE.finditer(text):

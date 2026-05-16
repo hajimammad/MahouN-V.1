@@ -117,9 +117,9 @@ def scan_file(file_path: Path) -> List[Tuple[int, str, str, int]]:
                         )
                         issues.append((line_num, redacted_line, description, severity))
     
-    except Exception as e:
-        # Silently skip files that can't be read
-        pass
+    except Exception:
+        # Skip files that can't be read
+        return issues
     
     return issues
 

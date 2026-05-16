@@ -86,7 +86,7 @@ def demo_backend_selection():
             model_info = gguf_direct.get_model_info()
             print(f"   Model size: {model_info['model_size_mb']:.1f} MB")
         except Exception:
-            pass
+            print("   Model size: (information not available)")
 
     except Exception as e:
         print(f"⚠️  GGUF backend not available: {e}")

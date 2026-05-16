@@ -357,7 +357,7 @@ class RequestReplay:
                     if request and request.handler_name == handler_name:
                         request_ids.append(filepath.stem)
                 except Exception:
-                    pass
+                    logger.debug(f"Skipping unreadable request at {filepath}")
             else:
                 request_ids.append(filepath.stem)
         

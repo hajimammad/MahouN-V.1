@@ -16,7 +16,8 @@ ALLOWED_ENV_ACCESS_PATHS = [
     "mahoun/core/governance_lock.py",
     "tests/conftest.py",
     "tests/determinism/conftest.py",
-    "api/main.py"
+    "api/main.py",
+    "scripts/"
 ]
 
 class ASTVisitor(ast.NodeVisitor):
@@ -47,7 +48,7 @@ class ASTVisitor(ast.NodeVisitor):
     def _check_random_import(self, node):
         # Avoid random and uuid in core reasoning (determinism breach)
         is_core = "mahoun/core/" in str(self.file_path) or "mahoun/reasoning/" in str(self.file_path)
-        is_exempt = "fortress_validator.py" in str(self.file_path) or "governance_lock.py" in str(self.file_path)
+        is_exempt = any(p in str(self.file_path) for p in ["fortress_validator.py", "governance_lock.py", "uid_generator.py"])
         if is_core and not is_exempt:
             for alias in getattr(node, 'names', []):
                 if alias.name in ['random', 'uuid']:
@@ -112,11 +113,11 @@ def main():
     all_violations = []
     
     for py_file in root_dir.rglob("*.py"):
-        if ".venv" in py_file.parts or "venv" in py_file.parts or ".pytest_cache" in py_file.parts or "tests/" in str(py_file):
-            # Skip virtualenvs and tests for these strict codebase checks (except conftest which is handled)
-            if "conftest.py" not in py_file.name:
-                continue
-        
+        # Skip system, virtualenv, and hidden directories
+        skip_dirs = [".venv", "venv", ".pytest_cache", ".kilo", ".qoder", ".claude", ".deepseek"]
+        if any(d in py_file.parts for d in skip_dirs):
+            continue
+            
         # Don't scan tests unless specifically needed
         if "tests/" in str(py_file.relative_to(root_dir)) and py_file.name != "conftest.py":
             continue

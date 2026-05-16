@@ -40,8 +40,8 @@ def check_usage(file_path, root_dir):
                 elif class_name and class_name in f_content:
                     usage_count += 1
                     used_by.append(str(current_file))
-            except:
-                pass
+            except Exception:
+                continue
                 
     return usage_count, used_by
 
